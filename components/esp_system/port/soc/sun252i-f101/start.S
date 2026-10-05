@@ -13,7 +13,8 @@
 call_start_cpu0:
     csrci mstatus, 8
     li    t0, 0x2000
-    csrs  mstatus, t0         /* FPU state initial: libgcc soft-float reads the rounding mode */
+    csrs  mstatus, t0         /* FPU state initial: the compiler uses the single precision FPU */
+    csrw  fcsr, zero
     csrw  mie, zero
     csrw  mip, zero
     /* C907 extension CSRs: instruction/data cache, prefetch, branch predictors */
