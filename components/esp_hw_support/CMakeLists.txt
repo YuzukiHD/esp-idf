@@ -12,6 +12,23 @@ if(${target} STREQUAL "linux")
     return()
 endif()
 
+# sun252i-f101: no ESP power/clock/interrupt matrix hardware, own small port
+if(${target} STREQUAL "sun252i-f101")
+    idf_component_register(SRCS "esp_memory_utils.c"
+                                "port/sun252i-f101/esp_cpu_f101.c"
+                                "port/sun252i-f101/intr_f101.c"
+                                "port/sun252i-f101/clk_f101.c"
+                                "port/sun252i-f101/random_f101.c"
+                                "port/sun252i-f101/misc_f101.c"
+                                "port/sun252i-f101/chip_f101.c"
+                                "port/sun252i-f101/cache_f101.c"
+                           INCLUDE_DIRS "include" "include/soc" "port/sun252i-f101/include"
+                           PRIV_INCLUDE_DIRS "port/include" "include/esp_private"
+                           REQUIRES soc hal esp_rom
+                           PRIV_REQUIRES esp_system esp_timer)
+    return()
+endif()
+
 set(requires esp_hal_gpio esp_hal_usb esp_hal_pmu esp_hal_regi2c esp_hal_uart)
 set(priv_requires efuse                 # only esp_hw_support/adc_share_hw_ctrl.c requires efuse component
                   spi_flash
