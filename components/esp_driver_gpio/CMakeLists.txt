@@ -1,5 +1,10 @@
 idf_build_get_property(target IDF_TARGET)
 
+if(${target} STREQUAL "sun252i-f101")
+    include(${CMAKE_CURRENT_LIST_DIR}/sun252i-f101/component.cmake)
+    return()
+endif()
+
 if(${target} STREQUAL "linux")
     # TODO: Remove this once all components have their requirements explicitly defined
     # and using set(COMPONENTS main).
