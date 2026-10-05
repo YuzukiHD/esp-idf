@@ -61,7 +61,7 @@ void esp_rom_install_channel_putc(int channel, void (*putc)(char c))
 #if !ESP_ROM_HAS_OUTPUT_TO_CHANNELS_FUNC
         _putc1 = putc;
 #endif
-#if !CONFIG_IDF_TARGET_LINUX
+#if !(CONFIG_IDF_TARGET_LINUX || CONFIG_IDF_TARGET_SUN252I_F101)
         ets_install_putc1(putc);
 #endif
         break;
@@ -69,7 +69,7 @@ void esp_rom_install_channel_putc(int channel, void (*putc)(char c))
 #if !ESP_ROM_HAS_OUTPUT_TO_CHANNELS_FUNC
         _putc2 = putc;
 #endif
-#if !CONFIG_IDF_TARGET_LINUX
+#if !(CONFIG_IDF_TARGET_LINUX || CONFIG_IDF_TARGET_SUN252I_F101)
         ets_install_putc2(putc);
 #endif
         break;
@@ -84,7 +84,7 @@ void esp_rom_install_uart_printf(void)
 #if !ESP_ROM_HAS_OUTPUT_TO_CHANNELS_FUNC
     _putc1 = esp_rom_output_putc;
 #endif
-#if !CONFIG_IDF_TARGET_LINUX
+#if !(CONFIG_IDF_TARGET_LINUX || CONFIG_IDF_TARGET_SUN252I_F101)
     extern void ets_install_uart_printf(void);
     extern bool g_uart_print;
     extern bool g_usb_print;
@@ -93,7 +93,7 @@ void esp_rom_install_uart_printf(void)
     g_uart_print = true;
     g_usb_print = true;
     ets_install_uart_printf();
-#endif // !CONFIG_IDF_TARGET_LINUX
+#endif
 }
 #endif
 

@@ -278,7 +278,7 @@ static int ets_vprintf(void (*putc)(char c), const char *fmt, va_list ap)
 }
 #endif // !ESP_ROM_HAS_VPRINTF_FUNC
 
-#if CONFIG_IDF_TARGET_LINUX
+#if CONFIG_IDF_TARGET_LINUX || CONFIG_IDF_TARGET_SUN252I_F101
 // esp_rom_printf is already available from ROM. At the moment we only need this for LINUX.
 int esp_rom_printf(const char *fmt, ...)
 {

@@ -9,10 +9,15 @@ set(include_dirs "include"
 
 set(private_required_comp "")
 
+set(rom_less FALSE)
+if(target STREQUAL "linux" OR target STREQUAL "sun252i-f101")
+    set(rom_less TRUE)
+endif()
+
 set(sources "patches/esp_rom_sys.c"
             "patches/esp_rom_print.c")
 
-if(target STREQUAL "linux")
+if(rom_less)
     list(APPEND sources "${target}/esp_rom_sys.c"
                         "${target}/esp_rom_crc.c"
                         "${target}/esp_rom_md5.c"
@@ -76,7 +81,7 @@ function(rom_linker_script name)
     target_linker_script(${COMPONENT_LIB} INTERFACE "${target_folder}/${ld_folder}/${target}.rom.${name}.ld")
 endfunction()
 
-if(target STREQUAL "linux")
+if(rom_less)
     # We need to disable some warnings due to the ROM code's printf implementation
     if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND ${CMAKE_CXX_COMPILER_VERSION} GREATER "7.0.0")
         target_compile_options(${COMPONENT_LIB} PRIVATE -Wimplicit-fallthrough=0 -Wno-shift-count-overflow)
