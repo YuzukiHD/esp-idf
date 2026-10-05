@@ -1,5 +1,10 @@
 idf_build_get_property(target IDF_TARGET)
 
+if(${target} STREQUAL "sun252i-f101")
+    include(${CMAKE_CURRENT_LIST_DIR}/sun252i-f101/component.cmake)
+    return()
+endif()
+
 set(srcs)
 set(public_include "include")
 if(CONFIG_SOC_UART_SUPPORTED)

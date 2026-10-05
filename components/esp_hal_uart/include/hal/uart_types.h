@@ -31,6 +31,9 @@ typedef enum {
 #if SOC_UART_HP_NUM > 4
     UART_NUM_4,                         /*!< UART port 4 */
 #endif
+#if SOC_UART_HP_NUM > 5
+    UART_NUM_5,                         /*!< UART port 5 */
+#endif
 #if (SOC_UART_LP_NUM >= 1)
     LP_UART_NUM_0,                      /*!< LP UART port 0 */
 #endif

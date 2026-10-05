@@ -8,7 +8,7 @@ if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/${target}/include")
     list(APPEND includes "${target}/include")
 endif()
 
-if(CONFIG_SOC_UART_SUPPORTED)
+if(CONFIG_SOC_UART_SUPPORTED AND NOT ${target} STREQUAL "sun252i-f101")
     list(APPEND srcs "uart_hal.c" "uart_hal_iram.c" "${target}/uart_periph.c")
 endif()
 
