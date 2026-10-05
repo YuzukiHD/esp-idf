@@ -991,6 +991,7 @@ macro(project project_name)
         set(mapfile "${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map")
         set(idf_target "${IDF_TARGET}")
         string(TOUPPER ${idf_target} idf_target)
+        string(REPLACE "-" "_" idf_target ${idf_target})
         # Add cross-reference table to the map file
         target_link_options(${project_elf} PRIVATE "-Wl,--cref")
         # Add this symbol as a hint for esp_idf_size to guess the target name
