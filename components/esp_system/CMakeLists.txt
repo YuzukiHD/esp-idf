@@ -25,11 +25,11 @@ endif()
 
 set(srcs "esp_err.c")
 
-if(CONFIG_IDF_ENV_FPGA OR CONFIG_ESP_BRINGUP_BYPASS_CPU_CLK_SETTING)
+if((CONFIG_IDF_ENV_FPGA OR CONFIG_ESP_BRINGUP_BYPASS_CPU_CLK_SETTING) AND NOT ${target} STREQUAL "sun252i-f101")
     list(APPEND srcs "fpga_overrides_clk.c")
 endif()
 
-if(CONFIG_IDF_ENV_FPGA OR CONFIG_ESP_BRINGUP_BYPASS_RANDOM_SETTING)
+if((CONFIG_IDF_ENV_FPGA OR CONFIG_ESP_BRINGUP_BYPASS_RANDOM_SETTING) AND NOT ${target} STREQUAL "sun252i-f101")
     list(APPEND srcs "fpga_overrides_rng.c")
 endif()
 
@@ -43,9 +43,10 @@ if(BOOTLOADER_BUILD OR esp_tee_build)
     idf_component_register(SRCS "${srcs}" INCLUDE_DIRS "${include_dirs}"
                            REQUIRES spi_flash)
 else()
-    list(APPEND srcs "crosscore_int.c"
-            "esp_ipc.c"
-            "esp_err.c"
+    if(NOT ${target} STREQUAL "sun252i-f101")
+        list(APPEND srcs "crosscore_int.c" "esp_ipc.c")
+    endif()
+    list(APPEND srcs "esp_err.c"
             "freertos_hooks.c"
             "panic.c"
             "esp_system.c"
@@ -87,14 +88,20 @@ else()
         list(APPEND srcs "debug_assist.c")
     endif()
 
+    if(${target} STREQUAL "sun252i-f101")
+        # no flash, no cache, no MMU: only what the RAM image needs
+        set(priv_reqs esp_timer esp_hal_uart)
+    else()
+        set(priv_reqs spi_flash esp_timer esp_mm
+                      esp_hal_mspi esp_hal_wdt esp_hal_uart esp_hal_clock esp_hal_dma
+                      # [refactor-todo] requirements due to init code,
+                      # should be removable once using component init functions
+                      # link-time registration is used.
+                      bootloader_support esp_pm esp_usb_cdc_rom_console)
+    endif()
     idf_component_register(SRCS "${srcs}"
                         INCLUDE_DIRS include
-                        PRIV_REQUIRES spi_flash esp_timer esp_mm
-                                      esp_hal_mspi esp_hal_wdt esp_hal_uart esp_hal_clock esp_hal_dma
-                                    # [refactor-todo] requirements due to init code,
-                                    # should be removable once using component init functions
-                                    # link-time registration is used.
-                                    bootloader_support esp_pm esp_usb_cdc_rom_console
+                        PRIV_REQUIRES ${priv_reqs}
                         LDFRAGMENTS "linker.lf" "app.lf")
     add_subdirectory(port)
 
@@ -121,12 +128,12 @@ else()
                         PROCESS "${CMAKE_CURRENT_BINARY_DIR}/ld/sections.ld")
 endif()
 
-if(CONFIG_IDF_ENV_FPGA OR CONFIG_ESP_BRINGUP_BYPASS_CPU_CLK_SETTING)
+if((CONFIG_IDF_ENV_FPGA OR CONFIG_ESP_BRINGUP_BYPASS_CPU_CLK_SETTING) AND NOT ${target} STREQUAL "sun252i-f101")
     # Forces the linker to include fpga stubs from this component
     target_link_libraries(${COMPONENT_LIB} INTERFACE "-u esp_common_include_fpga_overrides_clk")
 endif()
 
-if(CONFIG_IDF_ENV_FPGA OR CONFIG_ESP_BRINGUP_BYPASS_RANDOM_SETTING)
+if((CONFIG_IDF_ENV_FPGA OR CONFIG_ESP_BRINGUP_BYPASS_RANDOM_SETTING) AND NOT ${target} STREQUAL "sun252i-f101")
     # Forces the linker to include fpga stubs from this component
     target_link_libraries(${COMPONENT_LIB} INTERFACE "-u esp_common_include_fpga_overrides_rng")
 endif()

@@ -9,6 +9,16 @@ idf_component_register(SRCS ${src}
                     INCLUDE_DIRS "include")
 
 if(NOT BOOTLOADER_BUILD)
+    if(CONFIG_IDF_TARGET_SUN252I_F101)
+        # no eFuse block revisions and no SPI flash on this target
+        target_compile_definitions(${COMPONENT_LIB} PRIVATE
+            CONFIG_ESP_EFUSE_BLOCK_REV_MIN_FULL=0
+            CONFIG_ESP_EFUSE_BLOCK_REV_MAX_FULL=0)
+        if(NOT DEFINED CONFIG_ESPTOOLPY_FLASHMODE_VAL)
+            target_compile_definitions(${COMPONENT_LIB} PRIVATE CONFIG_ESPTOOLPY_FLASHMODE_VAL=0)
+        endif()
+    endif()
+
     # esp_app_desc structure is added as an undefined symbol because otherwise the
     # linker will ignore this structure as it has no other files depending on it.
     if(CONFIG_IDF_TARGET_LINUX AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")

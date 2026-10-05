@@ -1,0 +1,6 @@
+config ESP_DEFAULT_CPU_FREQ_MHZ
+    int "CPU frequency (MHz)"
+    default 600
+    help
+        CPU frequency of the XuanTie C907 core after the FEL download flow
+        (PLL_CPU is configured by the boot ROM helper).

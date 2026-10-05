@@ -44,7 +44,11 @@
 #endif
 
 #if !CONFIG_ESP_SYSTEM_PANIC_SILENT_REBOOT
+#if !CONFIG_IDF_TARGET_SUN252I_F101
 #include "hal/uart_hal.h"
+#else
+#include "soc/sun252i_f101_ll.h"
+#endif
 #endif
 
 #if CONFIG_ESP_SYSTEM_PANIC_GDBSTUB
@@ -85,6 +89,12 @@ static uint32_t DRAM_ATTR g_panic_entry_count[CONFIG_FREERTOS_NUMBER_OF_CORES] =
 /********************** Panic print functions **********************/
 
 #if CONFIG_ESP_CONSOLE_UART
+#if CONFIG_IDF_TARGET_SUN252I_F101
+static void panic_print_char_uart(const char c)
+{
+    f101_uart_putc(CONFIG_ESP_CONSOLE_UART_NUM, c);
+}
+#else
 static uart_hal_context_t s_panic_uart = { .dev = CONFIG_ESP_CONSOLE_UART_NUM == 0 ? &UART0 :&UART1 };
 
 static void panic_print_char_uart(const char c)
@@ -93,6 +103,7 @@ static void panic_print_char_uart(const char c)
     while (!uart_hal_get_txfifo_len(&s_panic_uart));
     uart_hal_write_txfifo(&s_panic_uart, (uint8_t *) &c, 1, &sz);
 }
+#endif
 #endif // CONFIG_ESP_CONSOLE_UART
 
 #if CONFIG_ESP_CONSOLE_USB_CDC

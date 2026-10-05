@@ -1,0 +1,20 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Yuzuki Tsuru
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+ENTRY(call_start_cpu0);
+
+SECTIONS
+{
+#include "ld.iram.sections"
+
+#include "ld.dram.sections"
+
+#include "ld.flash.sections"
+
+#include "ld.heap.sections"
+
+#include "ld.debug.sections"
+#include "ld.discard.sections"
+}

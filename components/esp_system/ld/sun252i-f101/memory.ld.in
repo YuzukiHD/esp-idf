@@ -1,0 +1,32 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Yuzuki Tsuru
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * sun252i-f101: the image is loaded over USB (FEL) into the 16 MB PSRAM at
+ * 0x40010000 and runs there. Code and data share one region, the rest of it
+ * (behind _heap_start) is the heap.
+ */
+#include "sdkconfig.h"
+#include "ld.common"
+
+#define RAM_ORG   0x40010000
+#define RAM_LEN   0xFF0000
+
+MEMORY
+{
+  ram_seg (RWX) : org = RAM_ORG, len = RAM_LEN
+}
+
+REGION_ALIAS("iram_text_seg", ram_seg);
+REGION_ALIAS("dram_seg", ram_seg);
+REGION_ALIAS("flash_text_seg", ram_seg);
+REGION_ALIAS("flash_rodata_seg", ram_seg);
+REGION_ALIAS("rtc_text_seg", ram_seg);
+REGION_ALIAS("rtc_data_seg", ram_seg);
+REGION_ALIAS("rtc_slow_seg", ram_seg);
+REGION_ALIAS("rtc_force_fast_seg", ram_seg);
+REGION_ALIAS("rtc_force_slow_seg", ram_seg);
+
+ALIGN_VECTOR_TABLE = 256;
+_heap_end = ORIGIN(ram_seg) + LENGTH(ram_seg);
+_stack_size = 0x4000;
