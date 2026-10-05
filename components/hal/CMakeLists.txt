@@ -25,7 +25,7 @@ if(NOT CONFIG_APP_BUILD_TYPE_PURE_RAM_APP)
     # ESP32 cache structure / ROM APIs are different and we have a patch `cache_hal_esp32.c` for it.
     if(${target} STREQUAL "esp32")
         list(APPEND srcs "esp32/cache_hal_esp32.c")
-    elseif(NOT ${target} STREQUAL "linux")
+    elseif(NOT ${target} STREQUAL "linux" AND NOT ${target} STREQUAL "sun252i-f101")
         list(APPEND srcs "cache_hal.c")
     endif()
 else()

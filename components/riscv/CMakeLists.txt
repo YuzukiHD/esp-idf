@@ -18,6 +18,9 @@ elseif(esp_tee_build)
     elseif(CONFIG_SOC_INT_CLIC_SUPPORTED)
         list(APPEND srcs "interrupt_clic.c")
     endif()
+elseif(${target} STREQUAL "sun252i-f101")
+    set(priv_requires soc hal)
+    set(srcs "instruction_decode.c" "rv_utils.c")
 else()
     set(priv_requires soc hal)
     set(srcs
@@ -40,4 +43,6 @@ idf_component_register(SRCS "${srcs}"
                        INCLUDE_DIRS "include"
                        PRIV_REQUIRES ${priv_requires})
 
-target_linker_script(${COMPONENT_LIB} INTERFACE "ld/rom.api.ld")
+if(NOT ${target} STREQUAL "sun252i-f101")
+    target_linker_script(${COMPONENT_LIB} INTERFACE "ld/rom.api.ld")
+endif()
