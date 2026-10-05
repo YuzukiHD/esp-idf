@@ -3,12 +3,17 @@
  * SPDX-License-Identifier: MIT
  *
  * Trap entry, context switch and first task start. The frame is RvExcFrame
- * compatible (esp_system panic code reads it), followed by two port words.
+ * compatible (esp_system panic code reads it), followed by two port words and
+ * the single precision FPU state: every trap saves f0..f31 and fcsr, so the C
+ * code of interrupt handlers and of the scheduler may use the FPU freely and
+ * each task keeps its own FPU registers and rounding mode.
  */
 #include "sdkconfig.h"
 #include "freertos/FreeRTOSConfig.h"
 
-#define FRAME_SIZE      176
+#define FRAME_SIZE      320     /* 176 byte RvExcFrame + port words, then f0..f31 and fcsr */
+#define F_FP            176     /* f0..f31, 4 bytes each */
+#define F_FCSR          304
 #define F_MEPC          0
 #define F_RA            4
 #define F_SP            8
@@ -105,6 +110,41 @@ f101_trap_entry:
     lw      t1, 0(t0)
     sw      t1, F_OUTER(sp)
 
+    frcsr   t0
+    sw      t0, F_FCSR(sp)
+    fsw     f0, F_FP+0(sp)
+    fsw     f1, F_FP+4(sp)
+    fsw     f2, F_FP+8(sp)
+    fsw     f3, F_FP+12(sp)
+    fsw     f4, F_FP+16(sp)
+    fsw     f5, F_FP+20(sp)
+    fsw     f6, F_FP+24(sp)
+    fsw     f7, F_FP+28(sp)
+    fsw     f8, F_FP+32(sp)
+    fsw     f9, F_FP+36(sp)
+    fsw     f10, F_FP+40(sp)
+    fsw     f11, F_FP+44(sp)
+    fsw     f12, F_FP+48(sp)
+    fsw     f13, F_FP+52(sp)
+    fsw     f14, F_FP+56(sp)
+    fsw     f15, F_FP+60(sp)
+    fsw     f16, F_FP+64(sp)
+    fsw     f17, F_FP+68(sp)
+    fsw     f18, F_FP+72(sp)
+    fsw     f19, F_FP+76(sp)
+    fsw     f20, F_FP+80(sp)
+    fsw     f21, F_FP+84(sp)
+    fsw     f22, F_FP+88(sp)
+    fsw     f23, F_FP+92(sp)
+    fsw     f24, F_FP+96(sp)
+    fsw     f25, F_FP+100(sp)
+    fsw     f26, F_FP+104(sp)
+    fsw     f27, F_FP+108(sp)
+    fsw     f28, F_FP+112(sp)
+    fsw     f29, F_FP+116(sp)
+    fsw     f30, F_FP+120(sp)
+    fsw     f31, F_FP+124(sp)
+
     mv      s0, sp                       /* frame, survives the C call */
     la      t0, port_uxInterruptNesting
     lw      t1, 0(t0)
@@ -145,6 +185,40 @@ f101_trap_entry:
     j       6f
 5:  mv      sp, s0
 6:
+    lw      t0, F_FCSR(sp)
+    csrw    fcsr, t0
+    flw     f0, F_FP+0(sp)
+    flw     f1, F_FP+4(sp)
+    flw     f2, F_FP+8(sp)
+    flw     f3, F_FP+12(sp)
+    flw     f4, F_FP+16(sp)
+    flw     f5, F_FP+20(sp)
+    flw     f6, F_FP+24(sp)
+    flw     f7, F_FP+28(sp)
+    flw     f8, F_FP+32(sp)
+    flw     f9, F_FP+36(sp)
+    flw     f10, F_FP+40(sp)
+    flw     f11, F_FP+44(sp)
+    flw     f12, F_FP+48(sp)
+    flw     f13, F_FP+52(sp)
+    flw     f14, F_FP+56(sp)
+    flw     f15, F_FP+60(sp)
+    flw     f16, F_FP+64(sp)
+    flw     f17, F_FP+68(sp)
+    flw     f18, F_FP+72(sp)
+    flw     f19, F_FP+76(sp)
+    flw     f20, F_FP+80(sp)
+    flw     f21, F_FP+84(sp)
+    flw     f22, F_FP+88(sp)
+    flw     f23, F_FP+92(sp)
+    flw     f24, F_FP+96(sp)
+    flw     f25, F_FP+100(sp)
+    flw     f26, F_FP+104(sp)
+    flw     f27, F_FP+108(sp)
+    flw     f28, F_FP+112(sp)
+    flw     f29, F_FP+116(sp)
+    flw     f30, F_FP+120(sp)
+    flw     f31, F_FP+124(sp)
     lw      t0, F_MEPC(sp)
     csrw    mepc, t0
     lw      t0, F_MSTATUS(sp)

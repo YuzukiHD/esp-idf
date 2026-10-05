@@ -21,6 +21,7 @@
 #define MIE_MTIE            (1u << 7)
 #define MIE_MEIE            (1u << 11)
 
+#define PORT_FRAME_SIZE     320u            /* matches FRAME_SIZE of portasm.S: RvExcFrame + port words + FPU state */
 #define TICK_CYCLES         (F101_MTIME_HZ / configTICK_RATE_HZ)
 
 volatile uint32_t uxCriticalNesting;
@@ -57,12 +58,12 @@ StackType_t *pxPortInitialiseStack(StackType_t *pxTopOfStack, TaskFunction_t pxC
     memcpy((void *)tls, &_thread_local_data_start, tdata);
     memset((void *)(tls + tdata), 0, tbss);
 
-    uint32_t *frame = (uint32_t *)((tls - 176) & ~0xfu);
+    uint32_t *frame = (uint32_t *)((tls - PORT_FRAME_SIZE) & ~0xfu);
 
-    memset(frame, 0, 176);
+    memset(frame, 0, PORT_FRAME_SIZE);
     frame[0] = (uint32_t)pxCode;                    /* mepc */
     frame[1] = (uint32_t)prvTaskExitError;          /* ra */
-    frame[2] = (uint32_t)frame + 176;               /* sp */
+    frame[2] = (uint32_t)frame + PORT_FRAME_SIZE;               /* sp */
     __asm volatile("mv %0, gp" : "=r"(frame[3]));
     frame[4] = tls;                                 /* tp */
     frame[10] = (uint32_t)pvParameters;             /* a0 */
