@@ -68,6 +68,11 @@ if(CONFIG_LIBC_OPTIMIZED_MISALIGNED_ACCESS)
     list(APPEND EXTRA_LINK_FLAGS "-u esp_libc_include_strcmp_impl")
 endif()
 
+set(f101_suffix "")
+if(${target} STREQUAL "sun252i-f101")
+    set(f101_suffix "_f101")
+endif()
+
 if(CONFIG_LIBC_NEWLIB)
     list(APPEND srcs
         "src/flockfile.c"
@@ -75,7 +80,7 @@ if(CONFIG_LIBC_NEWLIB)
         "src/newlib_init.c")
 else()
     list(APPEND srcs
-         "src/picolibc/picolibc_init.c"
+         "src/picolibc/picolibc_init${f101_suffix}.c"
          "src/picolibc/rand.c"
          "src/picolibc/open_memstream.c"
          "src/picolibc/errno.c"
@@ -98,6 +103,9 @@ else()
 endif()
 
 set(priv_reqs soc spi_flash)
+if(${target} STREQUAL "sun252i-f101")
+    set(priv_reqs soc)
+endif()
 
 if(IDF_BUILD_V2)
     if(CONFIG_VFS_SUPPORT_IO)
