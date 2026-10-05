@@ -52,9 +52,17 @@ set(ldfragments "")
 
 # ---------------------------------------------------- Set Private Requirements ----------------------------------------
 
-list(APPEND private_requirements esp_hal_systimer)
+if(NOT ${target} STREQUAL "sun252i-f101")
+    list(APPEND private_requirements esp_hal_systimer)
+endif()
 
 # ---------------------------------------------------- Set Sources -----------------------------------------------------
+
+if(${target} STREQUAL "sun252i-f101")
+    set(port_dir "sun252i")
+else()
+    set(port_dir "${arch}")
+endif()
 
 # Add common source files
 list(APPEND srcs
@@ -63,8 +71,10 @@ list(APPEND srcs
 if((arch STREQUAL "xtensa") OR (arch STREQUAL "riscv"))
     list(APPEND srcs
         "app_startup.c"
-        "port_common.c"
-        "port_systick.c")
+        "port_common.c")
+    if(NOT ${target} STREQUAL "sun252i-f101")
+        list(APPEND srcs "port_systick.c")
+    endif()
 endif()
 
 # Add FreeRTOS Kernel source files
@@ -78,7 +88,7 @@ list(APPEND srcs
 
 # Add port source files
 list(APPEND srcs
-    "${kernel_impl}/portable/${arch}/port.c")
+    "${kernel_impl}/portable/${port_dir}/port.c")
 
 if(arch STREQUAL "linux")
     list(APPEND srcs
@@ -89,7 +99,7 @@ if(arch STREQUAL "linux")
     endif()
 else()
     list(APPEND srcs
-        "${kernel_impl}/portable/${arch}/portasm.S")
+        "${kernel_impl}/portable/${port_dir}/portasm.S")
 endif()
 
 if(arch STREQUAL "xtensa")
@@ -128,8 +138,8 @@ list(APPEND include_dirs
 
 # Add port public include directories
 list(APPEND include_dirs
-    "${kernel_impl}/portable/${arch}/include"               # For port headers via `#include "freertos/...h"`
-    "${kernel_impl}/portable/${arch}/include/freertos")     # For port headers via `#include "...h"`
+    "${kernel_impl}/portable/${port_dir}/include"               # For port headers via `#include "freertos/...h"`
+    "${kernel_impl}/portable/${port_dir}/include/freertos")     # For port headers via `#include "...h"`
 
 # Add ESP-additions public include directories
 list(APPEND include_dirs
