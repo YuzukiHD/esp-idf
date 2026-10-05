@@ -1,5 +1,10 @@
 idf_build_get_property(target IDF_TARGET)
 
+if(${target} STREQUAL "sun252i-f101")
+    include(${CMAKE_CURRENT_LIST_DIR}/sun252i-f101/component.cmake)
+    return()
+endif()
+
 if(${target} STREQUAL "linux")
     return() # This component is not supported by the POSIX/Linux simulator
 endif()
