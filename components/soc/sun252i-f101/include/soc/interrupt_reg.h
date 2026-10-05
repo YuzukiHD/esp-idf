@@ -6,6 +6,7 @@
  * names below keep the common riscv/esp_system sources compiling.
  */
 #pragma once
+#include "esp_bit_defs.h"   // BIT(), used by riscv/rv_utils.h
 
 #include <stdint.h>
 

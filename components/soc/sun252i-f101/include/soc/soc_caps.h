@@ -21,6 +21,7 @@
 #define SOC_I2C_SUPPORTED               (1)
 
 /*-------------------------- CPU CAPS ----------------------------------------*/
+#define SOC_CPU_HAS_FPU                 (1)
 #define SOC_CPU_CORES_NUM               (1U)
 #define SOC_CPU_INTR_NUM                (32)
 #define SOC_CPU_WATCHPOINTS_NUM         (4)

@@ -15,7 +15,7 @@ if(CONFIG_IDF_TOOLCHAIN_GCC)
            CONFIG_IDF_TARGET_ESP32H21)
         set(_march "rv32imac_zicsr_zifencei_zaamo_zalrsc")
     elseif(CONFIG_IDF_TARGET_SUN252I_F101)
-        set(_march "rv32imac_zicsr_zifencei")
+        set(_march "rv32imafc_zicsr_zifencei")      # C907: single precision FPU
     elseif(CONFIG_IDF_TARGET_ESP32H4)
         set(_march "rv32imafcb_zicsr_zifencei_zaamo_zalrsc")
     elseif(CONFIG_IDF_TARGET_ESP32P4 OR CONFIG_IDF_TARGET_ESP32S31)
