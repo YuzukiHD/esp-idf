@@ -116,9 +116,16 @@ static const struct dpy_panel_simple_pdata panel_pdata = {
 	.enable_delay_ms = 50,
 };
 
+/* PB0..PB3 carry the PWM_BL outputs at mux 2 */
+static const struct dpy_pin bl_pins[] = {
+	DPY_PIN(PIN('B', 0), 2), DPY_PIN(PIN('B', 1), 2), DPY_PIN(PIN('B', 2), 2), DPY_PIN(PIN('B', 3), 2),
+};
+
 static const struct dpy_backlight_pwm_pdata bl_pdata = {
-	.controller = NULL,
+	/* the one PWM_BL block is addressed by dpy_os_pwm_apply() itself, the handle only has to be set */
+	.controller = &bl_pins,
 	.channel = 0,
+	.pins = DPY_PIN_GROUP(bl_pins),
 	.period_ns = 20000,
 	.inverted = true,
 	.max_level = 255,
