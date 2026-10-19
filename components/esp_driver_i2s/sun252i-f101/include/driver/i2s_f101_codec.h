@@ -22,6 +22,14 @@ typedef enum {
 } i2s_f101_input_t;
 
 /** Digital DAC volume of both channels, 0 (silent) .. 100 */
+/**
+ * @brief Name the GPIO that enables the speaker amplifier of the board (-1: none).
+ *
+ * The line is driven to its active level while the output is on. May be called before or after the
+ * channel is created.
+ */
+esp_err_t i2s_f101_codec_set_pa_gpio(int gpio, bool active_high);
+
 esp_err_t i2s_f101_codec_set_volume(int percent);
 
 /** Mute the output without stopping the stream */

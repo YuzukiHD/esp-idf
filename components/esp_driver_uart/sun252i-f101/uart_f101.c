@@ -13,6 +13,7 @@
 #include "esp_intr_alloc.h"
 #include "driver/uart.h"
 #include "soc/sun252i_f101_ll.h"
+#include "soc/f101_periph_pins.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/stream_buffer.h"
 #include "freertos/queue.h"
@@ -183,37 +184,6 @@ esp_err_t uart_param_config(uart_port_t uart_num, const uart_config_t *cfg)
     return ESP_OK;
 }
 
-/* pins that can carry the TX / RX signal of each UART and the mux value that selects it */
-typedef struct {
-    uint8_t pin;        /* bank * 32 + number */
-    uint8_t mux;
-} uart_pin_opt_t;
-
-#define PIN(bank, n)    ((uint8_t)((bank) * 32 + (n)))
-enum { PB = 1, PE = 4, PF = 5 };
-
-static const struct {
-    uart_pin_opt_t tx[2];
-    uart_pin_opt_t rx[2];
-} s_uart_pins[NUM_UARTS] = {
-    [0] = { { { PIN(PF, 2), 3 } },                         { { PIN(PF, 4), 3 } } },
-    [1] = { { { PIN(PF, 0), 4 }, { PIN(PB, 0), 4 } },      { { PIN(PF, 1), 4 }, { PIN(PB, 1), 4 } } },
-    [2] = { { { PIN(PF, 4), 6 } },                         { { PIN(PF, 5), 6 } } },
-    [3] = { { { PIN(PE, 8), 6 } },                         { { PIN(PE, 9), 6 } } },
-    [4] = { { { PIN(PE, 2), 6 } },                         { { PIN(PE, 3), 6 } } },
-    [5] = { { { PIN(PE, 4), 7 } },                         { { PIN(PE, 5), 7 } } },
-};
-
-static int find_mux(const uart_pin_opt_t *opts, int pin)
-{
-    for (int i = 0; i < 2; i++) {
-        if (opts[i].pin == pin && (opts[i].pin || opts[i].mux)) {
-            return opts[i].mux;
-        }
-    }
-    return -1;
-}
-
 esp_err_t _uart_set_pin6(uart_port_t uart_num, int tx_io_num, int rx_io_num, int rts_io_num, int cts_io_num,
                         int dtr_io_num, int dsr_io_num)
 {
@@ -223,11 +193,11 @@ esp_err_t _uart_set_pin6(uart_port_t uart_num, int tx_io_num, int rx_io_num, int
     int tx_mux = -1, rx_mux = -1;
 
     if (tx_io_num >= 0) {
-        tx_mux = find_mux(s_uart_pins[uart_num].tx, tx_io_num);
+        tx_mux = f101_periph_pin_mux(F101_SIG_UART_TX, uart_num, tx_io_num);
         ESP_RETURN_ON_FALSE(tx_mux >= 0, ESP_ERR_INVALID_ARG, TAG, "gpio %d cannot be the TX of uart %d", tx_io_num, uart_num);
     }
     if (rx_io_num >= 0) {
-        rx_mux = find_mux(s_uart_pins[uart_num].rx, rx_io_num);
+        rx_mux = f101_periph_pin_mux(F101_SIG_UART_RX, uart_num, rx_io_num);
         ESP_RETURN_ON_FALSE(rx_mux >= 0, ESP_ERR_INVALID_ARG, TAG, "gpio %d cannot be the RX of uart %d", rx_io_num, uart_num);
     }
     if (tx_mux >= 0) {

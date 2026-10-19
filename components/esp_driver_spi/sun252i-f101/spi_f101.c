@@ -15,6 +15,7 @@
 #include "esp_log.h"
 #include "driver/spi_master.h"
 #include "soc/sun252i_f101_ll.h"
+#include "soc/f101_periph_pins.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
@@ -57,7 +58,6 @@
 #define FIFO_DEPTH      64
 #define MAX_BURST       0xffffffu
 #define NUM_HOSTS       2
-#define NATIVE_CS_PIN   33          /* PC1 */
 
 static const char *TAG = "spi";
 
@@ -122,6 +122,13 @@ esp_err_t spi_bus_initialize(spi_host_device_t host_id, const spi_bus_config_t *
     ESP_RETURN_ON_FALSE(c >= 0 && c < NUM_HOSTS, ESP_ERR_INVALID_ARG, TAG, "invalid host");
     struct spi_bus_t *b = &s_bus[c];
     ESP_RETURN_ON_FALSE(!b->used, ESP_ERR_INVALID_STATE, TAG, "host already in use");
+    /* iocfg order: mosi/data0, miso/data1, sclk, wp/data2, hd/data3 */
+    static const f101_signal_t sig[5] = { F101_SIG_SPI_MOSI, F101_SIG_SPI_MISO, F101_SIG_SPI_SCLK, F101_SIG_SPI_WP, F101_SIG_SPI_HOLD };
+
+    for (int i = 0; i < 5; i++) {
+        ESP_RETURN_ON_FALSE(cfg->iocfg[i] < 0 || f101_periph_pin_mux(sig[i], c, cfg->iocfg[i]) >= 0, ESP_ERR_INVALID_ARG, TAG,
+                            "gpio %d cannot carry spi signal %d of host %d", cfg->iocfg[i], i, c);
+    }
 
     b->ctrl = c;
     b->base = SPI_BASE(c);
@@ -136,7 +143,7 @@ esp_err_t spi_bus_initialize(spi_host_device_t host_id, const spi_bus_config_t *
         int pin = cfg->iocfg[i];
 
         if (pin >= 0) {
-            f101_pin_mux(pin, 3);
+            f101_periph_route(sig[i], c, pin);
             f101_pin_drive(pin, 2);
         }
     }
@@ -184,8 +191,8 @@ esp_err_t spi_bus_add_device(spi_host_device_t host_id, const spi_device_interfa
     d->cfg = *cfg;
     d->actual_hz = cfg->clock_speed_hz > 0 ? cfg->clock_speed_hz : 1000000;
     if (cfg->spics_io_num >= 0) {
-        if (cfg->spics_io_num == NATIVE_CS_PIN && c == 0) {
-            f101_pin_mux(cfg->spics_io_num, 3);
+        if (f101_periph_pin_mux(F101_SIG_SPI_CS, c, cfg->spics_io_num) >= 0) {
+            f101_periph_route(F101_SIG_SPI_CS, c, cfg->spics_io_num);
             f101_pin_pull(cfg->spics_io_num, F101_PULL_UP);
         } else {
             f101_gpio_set_level(cfg->spics_io_num, !(cfg->flags & SPI_DEVICE_POSITIVE_CS));
@@ -225,7 +232,7 @@ void spi_device_release_bus(spi_device_handle_t h)
 
 static bool uses_native_cs(struct spi_device_t *d)
 {
-    return d->cfg.spics_io_num < 0 || (d->cfg.spics_io_num == NATIVE_CS_PIN && d->bus->ctrl == 0);
+    return d->cfg.spics_io_num < 0 || f101_periph_pin_mux(F101_SIG_SPI_CS, d->bus->ctrl, d->cfg.spics_io_num) >= 0;
 }
 
 /* one transaction, bus lock held */

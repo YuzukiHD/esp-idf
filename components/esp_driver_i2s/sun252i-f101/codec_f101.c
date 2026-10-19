@@ -88,8 +88,9 @@ static const char *TAG = "codec";
 #define HPFB_IN_EN          (1u << 17)
 #define RAMP_OUT_EN         (1u << 15)
 
-/* the speaker amplifier of the board is enabled by PE10 */
-#define PA_GPIO             138
+/* The speaker amplifier enable line is a board matter: the application names it with i2s_f101_codec_set_pa_gpio() */
+static int s_pa_gpio = -1;
+static bool s_pa_active_high = true;
 #define PA_DELAY_MS         50
 
 /* PLL_AUDIO1: N[15:8] (multiplier N + 1), /2 output [18:16], /5 output [22:20] */
@@ -300,6 +301,33 @@ static void apply_source(void)
     upd(ADC1_AN, ADC1_EN | MIC1_PGA_EN | FMINLEN | LINEINLEN, v);
 }
 
+static void pa_set(bool on)
+{
+    if (s_pa_gpio >= 0) {
+        gpio_set_level(s_pa_gpio, on == s_pa_active_high);
+    }
+}
+
+static esp_err_t pa_setup(void)
+{
+    if (s_pa_gpio < 0) {
+        return ESP_OK;
+    }
+    pa_set(false);
+    return gpio_set_direction(s_pa_gpio, GPIO_MODE_OUTPUT);
+}
+
+esp_err_t i2s_f101_codec_set_pa_gpio(int gpio, bool active_high)
+{
+    if (s_pa_gpio >= 0 && s_pa_gpio != gpio) {
+        pa_set(false);
+        gpio_reset_pin(s_pa_gpio);
+    }
+    s_pa_gpio = gpio;
+    s_pa_active_high = active_high;
+    return s_inited ? pa_setup() : ESP_OK;
+}
+
 static void output_on(void)
 {
     if (s_output_on) {
@@ -312,7 +340,7 @@ static void output_on(void)
     upd(HP2, HPFB_BUF_EN | HPFB_IN_EN, HPFB_BUF_EN | HPFB_IN_EN);
     upd(HP2, RAMP_OUT_EN | RSWITCH, RAMP_OUT_EN | RSWITCH);
     upd(HP2, HP_DRVEN, HP_DRVEN);
-    gpio_set_level(PA_GPIO, 1);
+    pa_set(true);
     vTaskDelay(pdMS_TO_TICKS(PA_DELAY_MS));
 }
 
@@ -321,7 +349,7 @@ static void output_off(void)
     if (!s_output_on) {
         return;
     }
-    gpio_set_level(PA_GPIO, 0);
+    pa_set(false);
     upd(HP2, HP_DRVEN, 0);
     s_output_on = false;
     apply_mute();
@@ -339,8 +367,7 @@ esp_err_t codec_init(void)
     s_lock = xSemaphoreCreateMutex();
     ESP_RETURN_ON_FALSE(s_lock, ESP_ERR_NO_MEM, TAG, "no memory");
 
-    gpio_set_level(PA_GPIO, 0);
-    ESP_RETURN_ON_ERROR(gpio_set_direction(PA_GPIO, GPIO_MODE_OUTPUT), TAG, "pa gpio");
+    ESP_RETURN_ON_ERROR(pa_setup(), TAG, "pa gpio");
 
     F101_REG32(CODEC_BUS_GATE) &= ~(1u << 16);                  /* reset */
     F101_REG32(CODEC_BUS_GATE) |= (1u << 0);

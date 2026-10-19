@@ -13,6 +13,7 @@
 #include "esp_log.h"
 #include "driver/i2c_master.h"
 #include "soc/sun252i_f101_ll.h"
+#include "soc/f101_periph_pins.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
@@ -42,7 +43,6 @@
 #define ST_DATA_R_ACK   0x50u
 #define ST_DATA_R_NACK  0x58u
 
-#define I2C_PIN_MUX     4
 
 static const char *TAG = "i2c";
 
@@ -258,6 +258,11 @@ esp_err_t i2c_new_master_bus(const i2c_master_bus_config_t *cfg, i2c_master_bus_
     }
     ESP_RETURN_ON_FALSE(port >= 0 && port < SOC_I2C_NUM, ESP_ERR_NOT_FOUND, TAG, "no free i2c port");
     ESP_RETURN_ON_FALSE(!s_bus[port], ESP_ERR_INVALID_STATE, TAG, "port in use");
+    /* the pads come from the configuration; the SoC says which ones can carry the signals */
+    ESP_RETURN_ON_FALSE(cfg->scl_io_num < 0 || f101_periph_pin_mux(F101_SIG_I2C_SCL, port, cfg->scl_io_num) >= 0,
+                        ESP_ERR_INVALID_ARG, TAG, "gpio %d cannot be SCL of port %d", cfg->scl_io_num, port);
+    ESP_RETURN_ON_FALSE(cfg->sda_io_num < 0 || f101_periph_pin_mux(F101_SIG_I2C_SDA, port, cfg->sda_io_num) >= 0,
+                        ESP_ERR_INVALID_ARG, TAG, "gpio %d cannot be SDA of port %d", cfg->sda_io_num, port);
 
     struct i2c_master_bus_t *b = calloc(1, sizeof(*b));
     ESP_RETURN_ON_FALSE(b, ESP_ERR_NO_MEM, TAG, "no memory");
@@ -271,13 +276,13 @@ esp_err_t i2c_new_master_bus(const i2c_master_bus_config_t *cfg, i2c_master_bus_
     F101_REG32(TWI_BGR) |= (1u << (16 + port));
 
     if (cfg->scl_io_num >= 0) {
-        f101_pin_mux(cfg->scl_io_num, I2C_PIN_MUX);
+        f101_periph_route(F101_SIG_I2C_SCL, port, cfg->scl_io_num);
         if (cfg->flags.enable_internal_pullup) {
             f101_pin_pull(cfg->scl_io_num, F101_PULL_UP);
         }
     }
     if (cfg->sda_io_num >= 0) {
-        f101_pin_mux(cfg->sda_io_num, I2C_PIN_MUX);
+        f101_periph_route(F101_SIG_I2C_SDA, port, cfg->sda_io_num);
         if (cfg->flags.enable_internal_pullup) {
             f101_pin_pull(cfg->sda_io_num, F101_PULL_UP);
         }

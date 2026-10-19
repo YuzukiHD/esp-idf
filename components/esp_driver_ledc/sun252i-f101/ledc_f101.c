@@ -13,6 +13,7 @@
 #include "esp_log.h"
 #include "driver/ledc.h"
 #include "soc/sun252i_f101_ll.h"
+#include "soc/f101_periph_pins.h"
 #include "freertos/FreeRTOS.h"
 
 #define PWM_BASE        0x02000c00u
@@ -69,13 +70,10 @@ static void hw_init(void)
     s_hw_init = true;
 }
 
-/* pad function of the channel pins: PD6/PD7/PD8 at mux 6, PB3 at mux 7 */
+/* the pad function that carries the channel signal, -1 when the pad cannot */
 static int pin_mux_for(int ch, int gpio)
 {
-    static const int pins[NUM_CH] = { 3 * 32 + 6, 3 * 32 + 7, 3 * 32 + 8, 1 * 32 + 3 };
-    static const int mux[NUM_CH] = { 6, 6, 6, 7 };
-
-    return gpio == pins[ch] ? mux[ch] : -1;
+    return f101_periph_pin_mux(F101_SIG_PWM, ch, gpio);
 }
 
 static esp_err_t program(int ch)
