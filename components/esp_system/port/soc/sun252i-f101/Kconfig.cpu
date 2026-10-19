@@ -1,6 +1,17 @@
 config ESP_DEFAULT_CPU_FREQ_MHZ
     int "CPU frequency (MHz)"
+    range 72 1008
     default 600
     help
-        CPU frequency of the XuanTie C907 core after the FEL download flow
-        (PLL_CPU is configured by the boot ROM helper).
+        CPU frequency of the XuanTie C907 core. The download flow leaves it at 600 MHz; the start
+        code raises PLL_CPU in steps of 72 MHz and tests the memory after each step (the limit of the
+        PLL is 1008 MHz and the supply voltage is not changed). A step that fails the memory test is
+        undone and the CPU stays at the last good frequency.
+
+config ESP_RTC_F101_CLOCK_HOSC
+    bool "Count the RTC seconds from the 24 MHz crystal"
+    default y
+    help
+        The 32 kHz clock of the real time clock is the 24 MHz main crystal divided by 750: as accurate as the
+        crystal, but it runs only while the chip is powered. Without it the clock keeps the source the boot
+        code selected.

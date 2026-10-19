@@ -6,7 +6,7 @@ set(srcs)
 
 # On Linux the soc component is a simple wrapper, without much functionality
 if(${target} STREQUAL "sun252i-f101")
-    set(srcs "${target_folder}/soc_f101.c")
+    set(srcs "${target_folder}/soc_f101.c" "${target_folder}/periph_pins_f101.c")
 elseif(NOT ${target} STREQUAL "linux")
     set(srcs "lldesc.c"
             "dport_access_common.c"

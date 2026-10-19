@@ -11,6 +11,7 @@
 #include "esp_attr.h"
 #include "esp_private/startup_internal.h"
 #include "soc/sun252i_f101_ll.h"
+#include "soc/f101_periph_pins.h"
 
 ESP_LOG_ATTR_TAG(TAG, "cpu_start");
 
@@ -39,6 +40,15 @@ static void boot_tls_init(void)
 void __attribute__((noreturn)) call_start_cpu0_c(void)
 {
     boot_tls_init();
+#if CONFIG_ESP_CONSOLE_UART_CUSTOM
+    /* the pads of the console come from the configuration (-1: the ones the download helper routed) */
+    if (CONFIG_ESP_CONSOLE_UART_TX_GPIO >= 0) {
+        f101_periph_route(F101_SIG_UART_TX, CONFIG_ESP_CONSOLE_UART_NUM, CONFIG_ESP_CONSOLE_UART_TX_GPIO);
+    }
+    if (CONFIG_ESP_CONSOLE_UART_RX_GPIO >= 0) {
+        f101_periph_route(F101_SIG_UART_RX, CONFIG_ESP_CONSOLE_UART_NUM, CONFIG_ESP_CONSOLE_UART_RX_GPIO);
+    }
+#endif
     f101_uart_init(CONFIG_ESP_CONSOLE_ROM_SERIAL_PORT_NUM, 24000000, CONFIG_ESP_CONSOLE_UART_BAUDRATE);
 
     esp_rom_install_uart_printf();

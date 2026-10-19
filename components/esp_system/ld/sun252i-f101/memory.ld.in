@@ -3,14 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * sun252i-f101: the image is loaded over USB (FEL) into the 16 MB PSRAM at
- * 0x40010000 and runs there. Code and data share one region, the rest of it
+ * 0x40000000 and runs there. Code and data share one region, the rest of it
  * (behind _heap_start) is the heap.
  */
 #include "sdkconfig.h"
 #include "ld.common"
 
-#define RAM_ORG   0x40010000
-#define RAM_LEN   0xFF0000
+#define RAM_ORG   0x40000000
+#define RAM_LEN   0x1000000
 
 MEMORY
 {

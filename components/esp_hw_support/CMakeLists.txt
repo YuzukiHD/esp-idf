@@ -22,6 +22,7 @@ if(${target} STREQUAL "sun252i-f101")
                                 "port/sun252i-f101/misc_f101.c"
                                 "port/sun252i-f101/chip_f101.c"
                                 "port/sun252i-f101/cache_f101.c"
+                                "port/sun252i-f101/rtc_f101.c"
                            INCLUDE_DIRS "include" "include/soc" "port/sun252i-f101/include"
                            PRIV_INCLUDE_DIRS "port/include" "include/esp_private"
                            REQUIRES soc hal esp_rom

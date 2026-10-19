@@ -29,8 +29,8 @@ const soc_memory_type_desc_t soc_memory_types[SOC_MEMORY_TYPE_NUM] = {
 
 const size_t soc_memory_type_count = sizeof(soc_memory_types) / sizeof(soc_memory_type_desc_t);
 
-#define F101_RAM_START 0x40010000
-#define F101_RAM_SIZE  0x00FF0000
+#define F101_RAM_START 0x40000000
+#define F101_RAM_SIZE  0x01000000
 
 const soc_memory_region_t soc_memory_regions[] = {
     { F101_RAM_START, F101_RAM_SIZE, SOC_MEMORY_TYPE_RAM, F101_RAM_START, false },

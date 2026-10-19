@@ -74,7 +74,7 @@ f101_early_trap:
     jal   ra, puthex
     mv    a0, s1
     jal   ra, puthex
-    li    t0, 0x40010000
+    li    t0, 0x40000000
     bltu  s4, t0, 6f
     li    t0, 0x41000000
     bgeu  s4, t0, 6f

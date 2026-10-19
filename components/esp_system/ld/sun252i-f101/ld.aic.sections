@@ -1,0 +1,26 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Yuzuki Tsuru
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The static data of the AIC8800 driver (not that of the glue files of its component) in two output sections of
+ * their own, placed before the general data so that its input sections are taken here first; the range can then
+ * be put back to its start values when the chip is stopped. Empty in an application without the driver.
+ * The bss range lies outside of the one the start code clears, the driver clears it itself.
+ */
+  .aic_data :
+  {
+    . = ALIGN(8);
+    _aic_data_start = ABSOLUTE(.);
+    *libaic8800.a:(EXCLUDE_FILE(*aic_idf_if.c.obj *rtos_al.c.obj *aic_log.c.obj *sd_compat.c.obj *plat_config.c.obj *aic_mem.c.obj) .data EXCLUDE_FILE(*aic_idf_if.c.obj *rtos_al.c.obj *aic_log.c.obj *sd_compat.c.obj *plat_config.c.obj *aic_mem.c.obj) .data.* EXCLUDE_FILE(*aic_idf_if.c.obj *rtos_al.c.obj *aic_log.c.obj *sd_compat.c.obj *plat_config.c.obj *aic_mem.c.obj) .sdata EXCLUDE_FILE(*aic_idf_if.c.obj *rtos_al.c.obj *aic_log.c.obj *sd_compat.c.obj *plat_config.c.obj *aic_mem.c.obj) .sdata.*)
+    . = ALIGN(8);
+    _aic_data_end = ABSOLUTE(.);
+  } > dram_seg
+
+  .aic_bss (NOLOAD) :
+  {
+    . = ALIGN(8);
+    _aic_bss_start = ABSOLUTE(.);
+    *libaic8800.a:(EXCLUDE_FILE(*aic_idf_if.c.obj *rtos_al.c.obj *aic_log.c.obj *sd_compat.c.obj *plat_config.c.obj *aic_mem.c.obj) .bss EXCLUDE_FILE(*aic_idf_if.c.obj *rtos_al.c.obj *aic_log.c.obj *sd_compat.c.obj *plat_config.c.obj *aic_mem.c.obj) .bss.* EXCLUDE_FILE(*aic_idf_if.c.obj *rtos_al.c.obj *aic_log.c.obj *sd_compat.c.obj *plat_config.c.obj *aic_mem.c.obj) .sbss EXCLUDE_FILE(*aic_idf_if.c.obj *rtos_al.c.obj *aic_log.c.obj *sd_compat.c.obj *plat_config.c.obj *aic_mem.c.obj) .sbss.* EXCLUDE_FILE(*aic_idf_if.c.obj *rtos_al.c.obj *aic_log.c.obj *sd_compat.c.obj *plat_config.c.obj *aic_mem.c.obj) COMMON)
+    . = ALIGN(8);
+    _aic_bss_end = ABSOLUTE(.);
+  } > dram_seg

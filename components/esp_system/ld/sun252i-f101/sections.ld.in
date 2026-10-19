@@ -9,6 +9,8 @@ SECTIONS
 {
 #include "ld.iram.sections"
 
+#include "ld.aic.sections"
+
 #include "ld.dram.sections"
 
 #include "ld.flash.sections"

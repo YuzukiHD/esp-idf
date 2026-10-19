@@ -52,6 +52,7 @@
 /*-------------------------- LEDC (PWM) CAPS ---------------------------------*/
 /*-------------------------- I2S CAPS ----------------------------------------*/
 #define SOC_I2S_SUPPORTED               (1)
+#define SOC_EFUSE_SECURE_BOOT_KEY_DIGESTS (1)       /* type of the API only: no secure boot */
 #define SOC_I2S_NUM                     (1U)        /* the on-chip audio codec is I2S_NUM_0 */
 #define SOC_I2S_HW_VERSION_2            (1)
 #define SOC_I2S_SUPPORTS_PLL_F160M      (0)

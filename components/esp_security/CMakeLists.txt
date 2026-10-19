@@ -1,6 +1,12 @@
 idf_build_get_property(target IDF_TARGET)
 idf_build_get_property(non_os_build NON_OS_BUILD)
 
+if(${target} STREQUAL "sun252i-f101")
+    # no hardware crypto engines on this target: only the headers (and the lock of the crypto peripherals)
+    idf_component_register(INCLUDE_DIRS "include")
+    return()
+endif()
+
 if(${target} STREQUAL "linux")
     # On linux, only provide headers (esp_key_config.h) without any source files
     idf_component_register(INCLUDE_DIRS "include")
