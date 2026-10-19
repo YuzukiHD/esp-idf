@@ -786,6 +786,8 @@ static void pbl_upd(unsigned int port, uint32_t off, uint32_t mask, uint32_t val
 	pbl_wr(port, off, (pbl_rd(port, off) & ~mask) | (val & mask));
 }
 
+static int s_pbl_gpio[4] = { -1, -1, -1, -1 };
+
 static void pbl_init(void)
 {
 	uint32_t src = pll_peri_rate();
@@ -800,12 +802,12 @@ static void pbl_init(void)
 	ccu_wr(PWMBL_MOD_REG, reg);
 	ccu_wr(PWMBL_MOD_REG, reg | BIT(31));
 
-	/* pins PB0..PB3 are the PWM_BL outputs (function 2), PB0 and PB2 drive level 3 */
+	/* the pads of the outputs were routed by f101_pwm_bl_init(); outputs 0 and 2 drive level 3 */
 	for (int n = 0; n < 4; n++) {
-		f101_pin_mux(32 + n, 2);
+		if (s_pbl_gpio[n] >= 0 && (n == 0 || n == 2)) {
+			f101_pin_drive(s_pbl_gpio[n], 3);
+		}
 	}
-	f101_pin_drive(32 + 0, 3);
-	f101_pin_drive(32 + 2, 3);
 
 	/* port 1: pure analog, 750 kHz */
 	pbl_upd(1, PWMBL_CTRL, BIT(2), 0);
@@ -840,20 +842,13 @@ static void pbl_init(void)
 	s_pbl_ready = true;
 }
 
-int dpy_os_pwm_apply(const void *ctrl, uint32_t channel, uint32_t period_ns, uint32_t duty_ns, bool inverted,
-		     bool enable)
+/* backlight level 0..255 on the PWM_BL block */
+static int pbl_set_level(uint32_t level)
 {
-	uint32_t level;
-
-	(void)ctrl;
-	(void)inverted;		/* the analog stage has no polarity */
-	if (channel != 0 || !period_ns || duty_ns > period_ns) {
-		return -EINVAL;
-	}
 	if (!s_pbl_ready) {
 		pbl_init();
 	}
-	level = enable ? (uint32_t)(((uint64_t)duty_ns * PWMBL_DIM_STEPS) / period_ns) : 0;
+	level = level * PWMBL_DIM_STEPS / 256U;
 	if (level > PWMBL_MAX_LOAD_CUR) {
 		level = PWMBL_MAX_LOAD_CUR;
 	}
@@ -862,6 +857,46 @@ int dpy_os_pwm_apply(const void *ctrl, uint32_t channel, uint32_t period_ns, uin
 	}
 	pbl_upd(0, PWMBL_ANA1, GENMASK(23, 16), (uint32_t)level << 16);
 	return 0;
+}
+
+int dpy_os_pwm_apply(const void *ctrl, uint32_t channel, uint32_t period_ns, uint32_t duty_ns, bool inverted,
+		     bool enable)
+{
+	(void)ctrl;
+	(void)inverted;		/* the analog stage has no polarity */
+	if (channel != 0 || !period_ns || duty_ns > period_ns) {
+		return -EINVAL;
+	}
+	return pbl_set_level(enable ? (uint32_t)(((uint64_t)duty_ns * 256U) / period_ns) : 0);
+}
+
+#include "esp_err.h"
+#include "soc/f101_periph_pins.h"
+#include "f101_pwm_bl.h"
+
+esp_err_t f101_pwm_bl_init(const int gpios[4])
+{
+	for (int n = 0; n < 4; n++) {
+		if (gpios[n] >= 0 && f101_periph_pin_mux(F101_SIG_PWM_BL, n, gpios[n]) < 0) {
+			return ESP_ERR_INVALID_ARG;
+		}
+	}
+	for (int n = 0; n < 4; n++) {
+		s_pbl_gpio[n] = gpios[n];
+		if (gpios[n] >= 0) {
+			f101_periph_route(F101_SIG_PWM_BL, n, gpios[n]);
+		}
+	}
+	s_pbl_ready = false;
+	return ESP_OK;
+}
+
+esp_err_t f101_pwm_bl_set_level(int level)
+{
+	if (level < 0 || level > 255) {
+		return ESP_ERR_INVALID_ARG;
+	}
+	return pbl_set_level((uint32_t)level) == 0 ? ESP_OK : ESP_FAIL;
 }
 
 int dpy_os_regulator_set(uint32_t id, uint32_t microvolt, bool enable)

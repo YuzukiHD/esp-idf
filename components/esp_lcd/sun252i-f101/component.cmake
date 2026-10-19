@@ -39,6 +39,10 @@ set(dpy_srcs
     "sun252i-f101/sunxi/tcon/tcon_clk.c"
     "sun252i-f101/sunxi/encoder/encoder_common.c"
     "sun252i-f101/sunxi/encoder/rgb/rgb.c"
+    "sun252i-f101/sunxi/encoder/dsi/dsi.c"
+    "sun252i-f101/sunxi/encoder/dsi/dsi_host.c"
+    "sun252i-f101/sunxi/phy/combo_dphy.c"
+    "sun252i-f101/sunxi/panel/panel_dsi.c"
     "sun252i-f101/sunxi/panel/panel_cmdseq.c"
     "sun252i-f101/sunxi/panel/panel_simple.c"
     "sun252i-f101/sunxi/backlight/bl_pwm.c"
@@ -48,20 +52,25 @@ set(dpy_srcs
 
 idf_component_register(SRCS ${dpy_srcs}
                             "sun252i-f101/src/dpy_os_idf.c"
-                            "sun252i-f101/src/dpy_board_f101.c"
+                            "sun252i-f101/src/f101_display_graph.c"
                             "sun252i-f101/src/esp_lcd_panel_rgb_f101.c"
                             "src/esp_lcd_panel_ops.c"
-                       INCLUDE_DIRS "../include" "../interface" "../rgb/include" "../../esp_hal_lcd/include" "../../esp_driver_parlio/include" "../../esp_driver_i2s/include" "../../esp_hal_parlio/include" "../../esp_hal_i2s/include"
+                            "src/esp_lcd_panel_io.c"
+                            "i2c/esp_lcd_panel_io_i2c.c"
+                       INCLUDE_DIRS "include" "../include" "../dsi/include" "../interface" "../rgb/include" "../../esp_hal_lcd/include" "../../esp_driver_parlio/include" "../../esp_driver_i2s/include" "../../esp_hal_parlio/include" "../../esp_hal_i2s/include"
                        PRIV_INCLUDE_DIRS "../priv_include" "include" "sunxi" "sunxi/include"
                        REQUIRES soc esp_hw_support hal esp_driver_gpio esp_driver_i2c esp_driver_spi
                        PRIV_REQUIRES freertos heap log esp_timer esp_rom)
 
-# the stack is built for one pipeline: display engine, TCON LCD, RGB output, simple panel, PWM backlight
+# the stack carries both outputs (RGB panel of the EVB, DSI panel of the YuzukiNeko); the board file builds one graph
 target_compile_definitions(${COMPONENT_LIB} PRIVATE
     CONFIG_DISPLAY_DE=1
     CONFIG_DISPLAY_TCON_LCD=1
     CONFIG_DISPLAY_ENCODER_RGB=1
     CONFIG_DISPLAY_PANEL_SIMPLE=1
+    CONFIG_DISPLAY_ENCODER_DSI=1
+    CONFIG_DISPLAY_COMBO_DPHY=1
+    CONFIG_DISPLAY_PANEL_DSI=1
     CONFIG_DISPLAY_BACKLIGHT_PWM=1
     CONFIG_DISPLAY_SOC_SUN252IW2=1)
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers

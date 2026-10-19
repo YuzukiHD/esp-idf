@@ -14,7 +14,8 @@
 #include <dpy/dpy_tcon.h>
 
 extern const struct dpy_soc_desc dpy_soc;
-extern const struct dpy_board_desc dpy_board;
+/* the graph of the panel that was configured (src/f101_display_graph.c) */
+extern const struct dpy_board_desc *f101_display_board(void);
 
 #define DPY_API_VBLANK_TIMEOUT_MS	100
 
@@ -58,7 +59,9 @@ static struct dpy_connector *dpy_api_writeback(struct dpy_device *dev)
 /* ------------------------------------------------------------------ */
 int display_probe(void)
 {
-	return dpy_core_probe(&dpy_soc, &dpy_board);
+	const struct dpy_board_desc *board = f101_display_board();
+
+	return board ? dpy_core_probe(&dpy_soc, board) : -ENODEV;
 }
 
 int display_remove(void)
@@ -229,6 +232,7 @@ int display_get_state(struct display_pipeline_state *state)
 		out->blend_mode = ps->blend_mode;
 		out->color_encoding = ps->color_encoding;
 		out->color_range = ps->color_range;
+		out->nearest = ps->nearest;
 		dpy_fb_to_api(&ps->fb, &out->framebuffer);
 		out->source.x = ps->src.x >> 16;
 		out->source.y = ps->src.y >> 16;
@@ -342,6 +346,7 @@ static int dpy_api_fill_plane(const struct display_plane_state *in,
 	ps->blend_mode = in->blend_mode;
 	ps->color_encoding = in->color_encoding;
 	ps->color_range = in->color_range;
+	ps->nearest = in->nearest;
 	return 0;
 }
 

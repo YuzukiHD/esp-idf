@@ -79,6 +79,15 @@ static const struct dpy_panel_funcs panel_dsi_funcs = {
 	.get_modes = panel_dsi_get_modes,
 };
 
+/* the DSI device of the bound panel, for commands sent from outside the pipeline (DBI io) */
+static struct dpy_dsi_device *s_bound_dsi;
+
+int display_dsi_dcs_write(uint8_t channel, uint8_t cmd, const void *data, size_t len)
+{
+	(void)channel;
+	return s_bound_dsi ? dpy_dsi_dcs_write(s_bound_dsi, cmd, data, len) : -ENODEV;
+}
+
 static int panel_dsi_bind(struct dpy_dev *dev, struct dpy_device *ddev)
 {
 	struct panel_dsi *pd = dev->priv;
@@ -104,6 +113,8 @@ static int panel_dsi_bind(struct dpy_dev *dev, struct dpy_device *ddev)
 	ret = dpy_panel_add(&pd->panel);
 	if (ret)
 		dpy_dsi_detach(&pd->dsi);
+	else
+		s_bound_dsi = &pd->dsi;
 	return ret;
 }
 
@@ -112,6 +123,7 @@ static void panel_dsi_unbind(struct dpy_dev *dev, struct dpy_device *ddev)
 	struct panel_dsi *pd = dev->priv;
 
 	(void)ddev;
+	s_bound_dsi = NULL;
 	dpy_panel_remove(&pd->panel);
 	dpy_dsi_detach(&pd->dsi);
 }
