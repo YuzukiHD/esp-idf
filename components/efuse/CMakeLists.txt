@@ -1,6 +1,11 @@
 idf_build_get_property(target IDF_TARGET)
 idf_build_get_property(non_os_build NON_OS_BUILD)
 
+if(${target} STREQUAL "sun252i-f101")
+    include(${CMAKE_CURRENT_LIST_DIR}/sun252i-f101/component.cmake)
+    return()
+endif()
+
 if(CONFIG_EFUSE_VIRTUAL)
     message(STATUS "Efuse virtual mode is enabled. If Secure boot or Flash encryption is on"
         " it does not provide any security. FOR TESTING ONLY!")
