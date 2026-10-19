@@ -7,7 +7,7 @@
 #pragma once
 
 #include "soc/soc_caps.h"
-#if SOC_SDMMC_HOST_SUPPORTED
+#if SOC_SDMMC_HOST_SUPPORTED || CONFIG_IDF_TARGET_SUN252I_F101
 
 #include <stdint.h>
 #include <stddef.h>

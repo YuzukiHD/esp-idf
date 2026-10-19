@@ -22,7 +22,7 @@ extern "C" {
  *
  * Uses SDMMC peripheral, with 4-bit mode enabled, and max frequency set to 20MHz
  */
-#if CONFIG_IDF_TARGET_ESP32S31
+#if CONFIG_IDF_TARGET_ESP32S31 || CONFIG_IDF_TARGET_SUN252I_F101
 #define SDMMC_HOST_DEFAULT() {\
     .flags = SDMMC_HOST_FLAG_8BIT | \
              SDMMC_HOST_FLAG_4BIT | \
@@ -109,6 +109,25 @@ extern "C" {
     .d5 = GPIO_NUM_17, \
     .d6 = GPIO_NUM_5, \
     .d7 = GPIO_NUM_18, \
+    .cd = SDMMC_SLOT_NO_CD, \
+    .wp = SDMMC_SLOT_NO_WP, \
+    .width   = SDMMC_SLOT_WIDTH_DEFAULT, \
+    .flags = 0, \
+}
+
+#elif CONFIG_IDF_TARGET_SUN252I_F101
+/* SMHC0, the only pads that can carry its signals (PF0..PF5); the 8 bit lines do not exist */
+#define SDMMC_SLOT_CONFIG_DEFAULT() {\
+    .clk = GPIO_NUM_PF(2), \
+    .cmd = GPIO_NUM_PF(3), \
+    .d0 = GPIO_NUM_PF(1), \
+    .d1 = GPIO_NUM_PF(0), \
+    .d2 = GPIO_NUM_PF(5), \
+    .d3 = GPIO_NUM_PF(4), \
+    .d4 = GPIO_NUM_NC, \
+    .d5 = GPIO_NUM_NC, \
+    .d6 = GPIO_NUM_NC, \
+    .d7 = GPIO_NUM_NC, \
     .cd = SDMMC_SLOT_NO_CD, \
     .wp = SDMMC_SLOT_NO_WP, \
     .width   = SDMMC_SLOT_WIDTH_DEFAULT, \

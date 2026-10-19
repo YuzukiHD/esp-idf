@@ -13,13 +13,28 @@
 #include "esp_log.h"
 #include "sdmmc_cmd.h"
 #include "sd_protocol_defs.h"
-#include "f101_sdmmc.h"
 #include "soc/sun252i_f101_ll.h"
+#include "soc/f101_periph_pins.h"
+#include "driver/sdmmc_host.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "esp_intr_alloc.h"
 
-#define SMHC_BASE       0x04020000u
+/* Two controllers are hosts: slot 0 is SMHC0 (the SD slot), slot 1 is SMHC2 (SDIO, the WiFi chip). The
+ * functions below work on the controller named by g_c, which every public call sets from its slot
+ * argument while it holds the lock. */
+#define SLOTS           2
+static const uint32_t k_base[SLOTS] = { 0x04020000u, 0x04022000u };
+static const uint32_t k_clk_off[SLOTS] = { 0x830u, 0x838u };
+static const uint8_t k_gate_bit[SLOTS] = { 0, 2 };          /* bus gate bit, the reset is 16 higher */
+static const uint8_t k_inst[SLOTS] = { 0, 2 };              /* controller number in the pad tables */
+static const int k_irq[SLOTS] = { 40, 42 };
+static int g_c;
+#define SMHC_BASE       (k_base[g_c])
 #define SMHC_BGR        (F101_CCU_BASE + 0x84cu)
-#define SMHC_CLK_REG    (F101_CCU_BASE + 0x830u)
+#define SMHC_CLK_REG    (F101_CCU_BASE + k_clk_off[g_c])
+#define SMHC_GATE       (1u << k_gate_bit[g_c])
+#define SMHC_RESET      (1u << (16 + k_gate_bit[g_c]))
 #define PLL_PERI_REG    (F101_CCU_BASE + 0x20u)
 
 #define GCTRL           0x00u
@@ -73,9 +88,42 @@
 
 static const char *TAG = "sdmmc_f101";
 
-static bool s_init;
-static size_t s_width = 1;
-static uint32_t s_khz;
+static bool s_host;                                 /* sdmmc_host_init() was called */
+static bool s_init_a[SLOTS];
+static bool s_slot_ready_a[SLOTS];
+static size_t s_slot_width_a[SLOTS] = { 4, 4 };
+static size_t s_width_a[SLOTS] = { 1, 1 };
+static uint32_t s_khz_a[SLOTS];
+static SemaphoreHandle_t s_lock;
+static SemaphoreHandle_t s_sdio_sem[SLOTS];
+static intr_handle_t s_intr[SLOTS];
+#define s_init          (s_init_a[g_c])
+#define s_slot_ready    (s_slot_ready_a[g_c])
+#define s_slot_width    (s_slot_width_a[g_c])
+#define s_width         (s_width_a[g_c])
+#define s_khz           (s_khz_a[g_c])
+
+/* take the lock and make @p slot the controller the helpers address */
+static esp_err_t enter(int slot)
+{
+    if (slot < 0 || slot >= SLOTS) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!s_lock) {
+        s_lock = xSemaphoreCreateRecursiveMutex();
+        if (!s_lock) {
+            return ESP_ERR_NO_MEM;
+        }
+    }
+    xSemaphoreTakeRecursive(s_lock, portMAX_DELAY);
+    g_c = slot;
+    return ESP_OK;
+}
+
+static void leave(void)
+{
+    xSemaphoreGiveRecursive(s_lock);
+}
 
 static inline uint32_t rd(uint32_t off)
 {
@@ -176,20 +224,20 @@ static esp_err_t reset_ctrl(void)
     return ESP_OK;
 }
 
-static esp_err_t host_init(void)
+/* the hardware of a controller comes up in sdmmc_host_init_slot() */
+esp_err_t sdmmc_host_init(void)
 {
-    ESP_RETURN_ON_FALSE(!s_init, ESP_ERR_INVALID_STATE, TAG, "already initialized");
-    F101_REG32(SMHC_BGR) &= ~(1u << 16);
-    F101_REG32(SMHC_BGR) |= 1u;
-    F101_REG32(SMHC_BGR) |= (1u << 16);
+    ESP_RETURN_ON_FALSE(!s_host, ESP_ERR_INVALID_STATE, TAG, "already initialized");
+    s_host = true;
+    return ESP_OK;
+}
+
+static esp_err_t slot_hw_up(void)
+{
+    F101_REG32(SMHC_BGR) &= ~SMHC_RESET;
+    F101_REG32(SMHC_BGR) |= SMHC_GATE;
+    F101_REG32(SMHC_BGR) |= SMHC_RESET;
     F101_REG32(SMHC_CLK_REG) = (1u << 31);          /* module clock on (24 MHz): the controller reset needs it */
-    /* PF0..PF5 carry the SD slot: clock, command and four data lines at mux 2 */
-    for (int n = 0; n < 6; n++) {
-        int pin = 5 * 32 + n;
-        f101_pin_mux(pin, 2);
-        f101_pin_pull(pin, F101_PULL_UP);
-        f101_pin_drive(pin, 3);
-    }
     ESP_RETURN_ON_ERROR(reset_ctrl(), TAG, "controller reset failed");
     wr(WIDTH, 0);
     s_width = 1;
@@ -199,52 +247,230 @@ static esp_err_t host_init(void)
     return ESP_OK;
 }
 
-static esp_err_t host_set_bus_width(int slot, size_t width)
+/* The pads come from the slot configuration; the SoC says which ones can carry the signals. Only the
+ * SMHC0 controller is a host here (slot 0). */
+esp_err_t sdmmc_host_init_slot(int slot, const sdmmc_slot_config_t *cfg)
+{
+    static const f101_signal_t sig[6] = { F101_SIG_SMHC_CLK, F101_SIG_SMHC_CMD, F101_SIG_SMHC_D0, F101_SIG_SMHC_D1,
+                                          F101_SIG_SMHC_D2, F101_SIG_SMHC_D3 };
+
+    ESP_RETURN_ON_FALSE(s_host, ESP_ERR_INVALID_STATE, TAG, "host not initialized");
+    ESP_RETURN_ON_FALSE(cfg, ESP_ERR_INVALID_ARG, TAG, "invalid argument");
+    ESP_RETURN_ON_ERROR(enter(slot), TAG, "slot 0 (SMHC0) and slot 1 (SMHC2) are hosts");
+    esp_err_t err = ESP_OK;
+
+    if (cfg->width != 0 && cfg->width != 1 && cfg->width != 4) {
+        err = ESP_ERR_INVALID_ARG;
+        ESP_LOGE(TAG, "bus width is 1 or 4");
+        goto out;
+    }
+    const gpio_num_t pins[6] = { cfg->clk, cfg->cmd, cfg->d0, cfg->d1, cfg->d2, cfg->d3 };
+    int lines = (cfg->width == 1) ? 3 : 6;      /* clk, cmd, d0 or all */
+
+    for (int i = 0; i < lines; i++) {
+        if (pins[i] < 0 || f101_periph_pin_mux(sig[i], k_inst[slot], pins[i]) < 0) {
+            ESP_LOGE(TAG, "gpio %d cannot carry sd signal %d of slot %d", (int)pins[i], i, slot);
+            err = ESP_ERR_INVALID_ARG;
+            goto out;
+        }
+    }
+    for (int i = 0; i < lines; i++) {
+        f101_periph_route(sig[i], k_inst[slot], pins[i]);
+        f101_pin_pull(pins[i], i == 0 ? F101_PULL_NONE : F101_PULL_UP);
+        f101_pin_drive(pins[i], 3);
+    }
+    s_slot_width = lines == 3 ? 1 : 4;
+    err = slot_hw_up();
+    s_slot_ready = err == ESP_OK;
+out:
+    leave();
+    return err;
+}
+
+static esp_err_t do_set_bus_width(int slot, size_t width)
 {
     ESP_RETURN_ON_FALSE(width == 1 || width == 4, ESP_ERR_INVALID_ARG, TAG, "unsupported bus width");
+    ESP_RETURN_ON_FALSE(width <= s_slot_width, ESP_ERR_INVALID_ARG, TAG, "the slot has only %u data line(s) routed", (unsigned)s_slot_width);
     wr(WIDTH, width == 4 ? 1 : 0);
     s_width = width;
     return ESP_OK;
 }
 
-static size_t host_get_bus_width(int slot)
+esp_err_t sdmmc_host_set_bus_width(int slot, size_t width)
+{
+    esp_err_t r;
+
+    if (enter(slot) != ESP_OK) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    r = do_set_bus_width(slot, width);
+    leave();
+    return r;
+}
+
+static size_t do_get_slot_width(int slot)
 {
     return s_width;
 }
 
-static esp_err_t host_set_card_clk(int slot, uint32_t freq_khz)
+size_t sdmmc_host_get_slot_width(int slot)
+{
+    size_t r;
+
+    if (enter(slot) != ESP_OK) {
+        return 0;
+    }
+    r = do_get_slot_width(slot);
+    leave();
+    return r;
+}
+
+static esp_err_t do_set_card_clk(int slot, uint32_t freq_khz)
 {
     ESP_RETURN_ON_ERROR(set_clock_hz(freq_khz * 1000), TAG, "clock setup failed");
     s_khz = freq_khz;
     return ESP_OK;
 }
 
-static esp_err_t host_get_real_freq(int slot, int *real)
+esp_err_t sdmmc_host_set_card_clk(int slot, uint32_t freq_khz)
+{
+    esp_err_t r;
+
+    if (enter(slot) != ESP_OK) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    r = do_set_card_clk(slot, freq_khz);
+    leave();
+    return r;
+}
+
+static esp_err_t do_get_real_freq(int slot, int *real)
 {
     *real = (int)s_khz;
     return ESP_OK;
 }
 
-static esp_err_t host_set_ddr(int slot, bool en)
+esp_err_t sdmmc_host_get_real_freq(int slot, int *real)
+{
+    esp_err_t r;
+
+    if (enter(slot) != ESP_OK) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    r = do_get_real_freq(slot, real);
+    leave();
+    return r;
+}
+
+esp_err_t sdmmc_host_set_bus_ddr_mode(int slot, bool en)
 {
     return en ? ESP_ERR_NOT_SUPPORTED : ESP_OK;
 }
 
-static esp_err_t host_set_always_on(int slot, bool on)
+esp_err_t sdmmc_host_set_cclk_always_on(int slot, bool on)
 {
     return ESP_OK;
 }
 
-static bool host_check_buffer_alignment(int slot, const void *buf, size_t size)
+bool sdmmc_host_check_buffer_alignment(int slot, const void *buf, size_t size)
 {
     return true;            /* the CPU moves the data, any alignment works */
 }
 
-static esp_err_t host_deinit(void)
+esp_err_t sdmmc_host_deinit_slot(int slot)
 {
+    ESP_RETURN_ON_ERROR(enter(slot), TAG, "slot");
+    if (s_intr[slot]) {
+        esp_intr_free(s_intr[slot]);
+        s_intr[slot] = NULL;
+    }
     F101_REG32(SMHC_CLK_REG) = 0;
-    F101_REG32(SMHC_BGR) &= ~((1u << 16) | 1u);
+    F101_REG32(SMHC_BGR) &= ~(SMHC_RESET | SMHC_GATE);
     s_init = false;
+    s_slot_ready = false;
+    leave();
+    return ESP_OK;
+}
+
+/* SDIO card interrupt (DAT1 low): masked in the interrupt, enabled again by io_int_wait() */
+#define INT_SDIO        (1u << 16)
+
+static void sdio_isr(void *arg)
+{
+    int c = (int)(intptr_t)arg;
+    uint32_t base = k_base[c];
+    BaseType_t woken = pdFALSE;
+    uint32_t r = F101_REG32(base + RINTR);
+
+    if (r & INT_SDIO) {
+        F101_REG32(base + IMASK) &= ~INT_SDIO;
+        F101_REG32(base + RINTR) = INT_SDIO;
+        xSemaphoreGiveFromISR(s_sdio_sem[c], &woken);
+    }
+    if (woken) {
+        portYIELD_FROM_ISR();
+    }
+}
+
+esp_err_t sdmmc_host_io_int_enable(int slot)
+{
+    ESP_RETURN_ON_ERROR(enter(slot), TAG, "slot");
+    esp_err_t err = ESP_OK;
+
+    if (!s_init) {
+        err = ESP_ERR_INVALID_STATE;
+    } else if (!s_intr[slot]) {
+        s_sdio_sem[slot] = s_sdio_sem[slot] ? s_sdio_sem[slot] : xSemaphoreCreateBinary();
+        err = s_sdio_sem[slot] ? esp_intr_alloc(k_irq[slot], 0, sdio_isr, (void *)(intptr_t)slot, &s_intr[slot]) : ESP_ERR_NO_MEM;
+    }
+    if (err == ESP_OK) {
+        wr(RINTR, INT_SDIO);
+        wr(IMASK, rd(IMASK) | INT_SDIO);
+    }
+    leave();
+    return err;
+}
+
+esp_err_t sdmmc_host_io_int_wait(int slot, uint32_t timeout_ticks)
+{
+    if (slot < 0 || slot >= SLOTS || !s_sdio_sem[slot]) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (xSemaphoreTake(s_sdio_sem[slot], timeout_ticks) != pdTRUE) {
+        return ESP_ERR_TIMEOUT;
+    }
+    /* the card interrupt is serviced by the caller; unmask it for the next one */
+    xSemaphoreTakeRecursive(s_lock, portMAX_DELAY);
+    g_c = slot;
+    wr(IMASK, rd(IMASK) | INT_SDIO);
+    xSemaphoreGiveRecursive(s_lock);
+    return ESP_OK;
+}
+
+esp_err_t sdmmc_host_set_input_delay(int slot, sdmmc_delay_phase_t delay_phase)
+{
+    return delay_phase == SDMMC_DELAY_PHASE_0 ? ESP_OK : ESP_ERR_NOT_SUPPORTED;
+}
+
+esp_err_t sdmmc_host_set_input_delayline(int slot, sdmmc_delay_line_t delay_line)
+{
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
+esp_err_t sdmmc_host_is_slot_set_to_uhs1(int slot, bool *is_uhs1)
+{
+    *is_uhs1 = false;
+    return ESP_OK;
+}
+
+esp_err_t sdmmc_host_deinit(void)
+{
+    for (int c = 0; c < SLOTS; c++) {
+        if (s_init_a[c]) {
+            sdmmc_host_deinit_slot(c);
+        }
+    }
+    s_host = false;
     return ESP_OK;
 }
 
@@ -261,7 +487,7 @@ static esp_err_t fifo_wait(uint32_t flag, uint64_t end)
     return ESP_OK;
 }
 
-static esp_err_t host_do_transaction(int slot, sdmmc_command_t *cmd)
+static esp_err_t do_do_transaction(int slot, sdmmc_command_t *cmd)
 {
     ESP_RETURN_ON_FALSE(s_init && cmd, ESP_ERR_INVALID_STATE, TAG, "host not ready");
     uint32_t cmdr = CMD_START | (cmd->opcode & 0x3f);
@@ -384,29 +610,16 @@ static esp_err_t host_do_transaction(int slot, sdmmc_command_t *cmd)
     return e;
 }
 
-sdmmc_host_t f101_sdmmc_host(void)
+esp_err_t sdmmc_host_do_transaction(int slot, sdmmc_command_t *cmd)
 {
-    sdmmc_host_t h = {
-        .flags = SDMMC_HOST_FLAG_1BIT | SDMMC_HOST_FLAG_4BIT,
-        .slot = 0,
-        .max_freq_khz = SDMMC_FREQ_HIGHSPEED,
-        .io_voltage = 3.3f,
-        .init = &host_init,
-        .set_bus_width = &host_set_bus_width,
-        .get_bus_width = &host_get_bus_width,
-        .set_bus_ddr_mode = &host_set_ddr,
-        .set_card_clk = &host_set_card_clk,
-        .set_cclk_always_on = &host_set_always_on,
-        .do_transaction = &host_do_transaction,
-        .deinit = &host_deinit,
-        .io_int_enable = NULL,
-        .io_int_wait = NULL,
-        .command_timeout_ms = 0,
-        .get_real_freq = &host_get_real_freq,
-        .check_buffer_alignment = &host_check_buffer_alignment,
-        .input_delay_phase = SDMMC_DELAY_PHASE_0,
-    };
-    return h;
+    esp_err_t r;
+
+    if (enter(slot) != ESP_OK) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    r = do_do_transaction(slot, cmd);
+    leave();
+    return r;
 }
 
 /* the slot is fixed at 3.3 V: there is no voltage switching */

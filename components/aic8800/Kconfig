@@ -1,0 +1,28 @@
+menu "AIC8800 WiFi (sun252i-f101)"
+    choice AIC8800_CHIP
+        prompt "Chip"
+        default AIC8800D80
+        config AIC8800D
+            bool "AIC8800D"
+        config AIC8800DW
+            bool "AIC8800DW"
+        config AIC8800DC
+            bool "AIC8800DC (AIC8800D40)"
+        config AIC8800D80
+            bool "AIC8800D80"
+    endchoice
+
+    config AIC8800_P2P
+        bool "Wi-Fi Direct (P2P), WPS and Hotspot 2.0"
+        default y
+
+    config AIC8800_WPA3
+        bool "WPA3 (SAE)"
+        default y
+        help
+            Build the SAE handshake of the supplicant on top of mbedTLS.
+
+    config AIC8800_MEM_POOL_KB
+        int "Memory pool of the driver (KiB)"
+        default 384
+endmenu

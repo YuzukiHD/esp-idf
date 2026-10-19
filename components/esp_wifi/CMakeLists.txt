@@ -1,5 +1,10 @@
 idf_build_get_property(idf_target IDF_TARGET)
 
+if(${idf_target} STREQUAL "sun252i-f101")
+    include(${CMAKE_CURRENT_LIST_DIR}/sun252i-f101/component.cmake)
+    return()
+endif()
+
 if(${idf_target} STREQUAL "linux")
     idf_component_register()    # Register empty component for first CMake pass for potential *Remote* functionality
     add_subdirectory(remote)    # wifi-remote on linux host
